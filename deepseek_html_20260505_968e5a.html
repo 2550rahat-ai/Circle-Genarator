@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KML Circle Generator for Google Maps | Create Radius Maps & Service Areas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+/* ... উপরের সব CSS একই থাকবে ... */
+</style>
+</head>
+<body>
+
+<!-- NAV, HERO, LAYOUT সব অপরিবর্তিত -->
+<!-- ... -->
+
+<script>
+let kmlContent='', mapObj=null, circLayer=null, pinLayer=null, pointsLayer=null;
+
+function clearAll(){
+  ['lat','lng','radius','points','biz-name','biz-cat','biz-addr','biz-phone',
+   'biz-email','biz-web','biz-hours','biz-img','biz-kw','biz-desc',
+   'soc-fb','soc-tw','soc-ig','soc-li','soc-yt'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.value='';
+  });
+  document.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=false);
+  document.getElementById('u-km').checked=true;
+}
+
+function getUnit(){ return document.querySelector('input[name=unit]:checked').value; }
+
+function circlePoints(lat,lng,rkm,n){
+  const pts=[],R=6371;
+  for(let i=0;i<=n;i++){
+    const a=(i/n)*2*Math.PI;
+    const dlat=(rkm/R)*(180/Math.PI)*Math.cos(a);
+    const dlng=(rkm/R)*(180/Math.PI)*Math.sin(a)/Math.cos(lat*Math.PI/180);
+    pts.push([lat+dlat, lng+dlng]);
+  }
+  return pts;
+}
+
+function generate(){
+  const lat=parseFloat(document.getElementById('lat').value);
+  const lng=parseFloat(document.getElementById('lng').value);
+  const rv=parseFloat(document.getElementById('radius').value);
+  const np=parseInt(document.getElementById('points').value);
+  if(isNaN(lat)||isNaN(lng)){alert('Please enter valid Latitude and Longitude.');return;}
+  if(isNaN(rv)||rv<=0){alert('Please enter a valid Radius value.');return;}
+  if(isNaN(np)||np<4){alert('Number of points must be at least 4.');return;}
+
+  const unit=getUnit();
+  const rkm=unit==='MI'?rv*1.60934:rv;
+  const pts=circlePoints(lat,lng,rkm,np); // length = np+1 (last point === first)
+
+  // ---- MAP (পিন সহ) ----
+  document.getElementById('map-ph').style.display='none';
+  document.getElementById('map').style.display='block';
+  if(!mapObj){
+    mapObj=L.map('map').setView([lat,lng],11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(mapObj);
+  } else {
+    if(circLayer) mapObj.removeLayer(circLayer);
+    if(pinLayer) mapObj.removeLayer(pinLayer);
+    if(pointsLayer) mapObj.removeLayer(pointsLayer);
+    mapObj.setView([lat,lng],11);
+  }
+
+  // Polygon (বৃত্ত)
+  circLayer=L.polygon(pts,{color:'#2563eb',weight:2.5,fillColor:'#3b82f6',fillOpacity:.1}).addTo(mapObj);
+
+  // কেন্দ্রের পিন
+  const ic=L.divIcon({html:'<div style="width:14px;height:14px;background:#2563eb;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(37,99,235,.5)"></div>',iconSize:[14,14],iconAnchor:[7,7],className:''});
+  const bn=document.getElementById('biz-name').value||'My Business';
+  const ba=document.getElementById('biz-addr').value;
+  pinLayer=L.marker([lat,lng],{icon:ic}).bindPopup('<b>'+bn+'</b>'+(ba?'<br>'+ba:'')).addTo(mapObj);
+
+  // নতুন: np সংখ্যক পিন বৃত্তের উপরে (ক্লোজিং পয়েন্ট বাদে)
+  const pinPts = pts.slice(0, np); // প্রথম np টি স্বতন্ত্র পয়েন্ট
+  const descContents = getDescriptionContent(); // পপুআপ কন্টেন্ট একই
+  const pinIcon = L.divIcon({
+    html: '<div style="width:8px;height:8px;background:#16a34a;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(22,163,74,.5)"></div>',
+    iconSize: [8,8],
+    iconAnchor: [4,4],
+    className: ''
+  });
+
+  pointsLayer = L.layerGroup();
+  pinPts.forEach((p, i) => {
+    const marker = L.marker(p, {icon: pinIcon}).bindPopup(
+      `<b>${bn}${document.getElementById('biz-cat').value ? ' — '+document.getElementById('biz-cat').value : ''} · Point ${i+1}</b><br>${descContents}`
+    );
+    pointsLayer.addLayer(marker);
+  });
+  pointsLayer.addTo(mapObj);
+
+  mapObj.fitBounds(circLayer.getBounds(),{padding:[20,20]});
+  document.getElementById('m-badge').textContent=rv+' '+unit+' · '+np+' pts';
+  document.getElementById('m-badge').className='badge on';
+
+  // ---- KML জেনারেশন ----
+  const cs=pts.map(p=>p[1].toFixed(6)+','+p[0].toFixed(6)+',0').join('\n            ');
+  const biz={
+    name:bn, cat:document.getElementById('biz-cat').value,
+    addr:ba, phone:document.getElementById('biz-phone').value,
+    email:document.getElementById('biz-email').value,
+    web:document.getElementById('biz-web').value,
+    hours:document.getElementById('biz-hours').value,
+    img:document.getElementById('biz-img').value,
+    kw:document.getElementById('biz-kw').value,
+    desc:document.getElementById('biz-desc').value,
+    fb:document.getElementById('soc-fb').value,
+    tw:document.getElementById('soc-tw').value,
+    ig:document.getElementById('soc-ig').value,
+    li:document.getElementById('soc-li').value,
+    yt:document.getElementById('soc-yt').value
+  };
+  const socStr=[biz.fb?'<a href="https://facebook.com/'+biz.fb+'">Facebook</a>':'',biz.tw?'<a href="https://x.com/'+biz.tw+'">X</a>':'',biz.ig?'<a href="https://instagram.com/'+biz.ig+'">Instagram</a>':'',biz.li?'<a href="https://linkedin.com/in/'+biz.li+'">LinkedIn</a>':'',biz.yt?'<a href="https://youtube.com/'+biz.yt+'">YouTube</a>':''].filter(Boolean).join(' | ');
+  const desc=[biz.cat?'<b>Category:</b> '+biz.cat+'<br/>':'',biz.addr?'<b>Address:</b> '+biz.addr+'<br/>':'',biz.phone?'<b>Phone:</b> '+biz.phone+'<br/>':'',biz.email?'<b>Email:</b> '+biz.email+'<br/>':'',biz.web?'<b>Website:</b> <a href="'+biz.web+'">'+biz.web+'</a><br/>':'',biz.hours?'<b>Hours:</b> '+biz.hours+'<br/>':'',biz.kw?'<b>Keywords:</b> '+biz.kw+'<br/>':'',biz.desc?'<br/>'+biz.desc+'<br/>':'',biz.img?'<br/><img src="'+biz.img+'" width="200"/><br/>':'',socStr?'<br/>'+socStr:''].join('');
+
+  // পিন Placemarks (সার্ভিস এরিয়ার সব পয়েন্ট)
+  const pinPM = pinPts.map((p,i)=>`
+  <Placemark>
+    <name>${biz.name}${biz.cat?' — '+biz.cat:''} · Point ${i+1}</name>
+    <description><![CDATA[${desc}]]></description>
+    <styleUrl>#pinStyle</styleUrl>
+    <Point><coordinates>${p[1].toFixed(6)},${p[0].toFixed(6)},0</coordinates></Point>
+  </Placemark>`).join('');
+
+  // ড্রাইভিং ডিরেকশন (৫% পয়েন্টের উপর, সর্বোচ্চ ৩টি)
+  const incDrive=document.getElementById('chk-drive').checked;
+  let drivePM='';
+  if(incDrive){
+    const sampleStep = Math.max(1, Math.floor(np * 0.05));
+    const driveIndices = [];
+    for(let i=0; i<np && driveIndices.length < 3; i+=sampleStep){
+      driveIndices.push(i);
+    }
+    const drivePts = driveIndices.map(i => pinPts[i]);
+    drivePM = drivePts.map((p, idx)=>`
+  <Placemark>
+    <name>${biz.name} — Directions ${idx+1}</name>
+    <description><![CDATA[<a href="https://www.google.com/maps/dir/?api=1&destination=${p[0].toFixed(6)},${p[1].toFixed(6)}">Get Directions</a>]]></description>
+    <styleUrl>#driveStyle</styleUrl>
+    <Point><coordinates>${p[1].toFixed(6)},${p[0].toFixed(6)},0</coordinates></Point>
+  </Placemark>`).join('');
+  }
+
+  // রুট (২% পয়েন্ট দিয়ে লাইন)
+  const incRoute=document.getElementById('chk-route').checked;
+  const routePM=incRoute?`
+  <Placemark>
+    <name>${biz.name} — Route</name>
+    <styleUrl>#routeStyle</styleUrl>
+    <LineString>
+      <coordinates>${pts.slice(0,Math.max(2,Math.ceil(np*.02))).map(p=>p[1].toFixed(6)+','+p[0].toFixed(6)+',0').join(' ')}</coordinates>
+    </LineString>
+  </Placemark>`:'';
+
+  kmlContent=`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>${biz.name} — Service Area (${rv} ${unit})</name>
+  <description>Radius: ${rv} ${unit} | Center: ${lat}, ${lng} | Points: ${np}</description>
+  <Style id="circleStyle">
+    <LineStyle><color>ffeb5226</color><width>3</width></LineStyle>
+    <PolyStyle><color>26eb5226</color></PolyStyle>
+  </Style>
+  <Style id="pinStyle">
+    <IconStyle><color>ffeb2663</color><scale>1.0</scale><Icon><href>https://maps.google.com/mapfiles/kml/paddle/blu-blank.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0.75</scale></LabelStyle>
+    <BalloonStyle><text><![CDATA[$[description]]]></text></BalloonStyle>
+  </Style>
+  <Style id="driveStyle">
+    <IconStyle><color>ff00aa00</color><scale>0.9</scale><Icon><href>https://maps.google.com/mapfiles/kml/paddle/grn-blank.png</href></Icon></IconStyle>
+  </Style>
+  <Style id="routeStyle">
+    <LineStyle><color>ff00aa00</color><width>2</width></LineStyle>
+  </Style>
+  <Placemark>
+    <name>${biz.name} — Service Area Circle (${rv} ${unit})</name>
+    <styleUrl>#circleStyle</styleUrl>
+    <Polygon>
+      <extrude>0</extrude>
+      <altitudeMode>clampToGround</altitudeMode>
+      <outerBoundaryIs><LinearRing><coordinates>
+            ${cs}
+      </coordinates></LinearRing></outerBoundaryIs>
+    </Polygon>
+  </Placemark>
+  <Placemark>
+    <name>${biz.name} — Center</name>
+    <description><![CDATA[${desc}]]></description>
+    <styleUrl>#pinStyle</styleUrl>
+    <Point><coordinates>${lng},${lat},0</coordinates></Point>
+  </Placemark>
+  ${pinPM}${drivePM}${routePM}
+</Document>
+</kml>`;
+
+  document.getElementById('kml-pre').textContent=kmlContent.substring(0,700)+'\n\n  ... ('+kmlContent.length+' total characters)';
+  document.getElementById('kml-box').classList.add('on');
+  document.getElementById('dl-btn').classList.add('show');
+
+  // helper function for popup content (DRY)
+  function getDescriptionContent() {
+    return desc; // previously computed
+  }
+}
+
+function downloadKML(){
+  if(!kmlContent)return;
+  const name=(document.getElementById('biz-name').value||'service-area').replace(/\s+/g,'-').toLowerCase();
+  const blob=new Blob([kmlContent],{type:'application/vnd.google-earth.kml+xml'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=name+'-circle.kml';a.click();
+  URL.revokeObjectURL(url);
+  const t=document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+</script>
+</body>
+</html>
