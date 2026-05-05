@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KML Circle Generator for Google Maps | Create Radius Maps & Service Areas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#2563eb;--primary-dark:#1d4ed8;--primary-light:#eff6ff;
+  --green:#16a34a;--green-light:#f0fdf4;
+  --bg:#f8fafc;--white:#ffffff;
+  --border:#e2e8f0;--text:#0f172a;--text2:#475569;--text3:#94a3b8;
+  --radius:10px;--radius-sm:6px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+  --shadow-md:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -2px rgba(0,0,0,.1);
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6}
+
+/* NAV */
+nav{background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;box-shadow:var(--shadow)}
+.nav-inner{max-width:1200px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:700;font-size:1rem;color:var(--text)}
+.logo-icon{width:36px;height:36px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.logo-icon svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2}
+.nav-links{display:flex;align-items:center;gap:2px}
+.nav-links a{padding:7px 13px;border-radius:var(--radius-sm);color:var(--text2);text-decoration:none;font-size:13.5px;font-weight:500;transition:background .15s,color .15s;white-space:nowrap}
+.nav-links a:hover{background:var(--primary-light);color:var(--primary)}
+.nav-cta{background:var(--primary)!important;color:#fff!important}
+.nav-cta:hover{background:var(--primary-dark)!important}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 45%,#0ea5e9 100%);color:#fff;padding:68px 24px 90px;text-align:center;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:52px;background:var(--bg);clip-path:ellipse(55% 100% at 50% 100%)}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.18);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.28);border-radius:100px;padding:5px 16px;font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-bottom:22px}
+.hero h1{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:800;line-height:1.12;margin-bottom:16px;letter-spacing:-.5px}
+.hero p{font-size:1.05rem;opacity:.88;max-width:520px;margin:0 auto}
+
+/* LAYOUT */
+.page-wrap{max-width:1200px;margin:0 auto;padding:40px 24px 60px;display:grid;grid-template-columns:430px 1fr;gap:28px;align-items:start}
+
+/* CARD */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-header h2{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.card-header h2 .ic{width:28px;height:28px;border-radius:6px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:13px}
+.card-body{padding:20px}
+
+/* FORM */
+.fg{margin-bottom:14px}
+.fg:last-child{margin-bottom:0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row-r{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+label.lbl{display:block;font-size:11.5px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:.2px;text-transform:uppercase}
+label.lbl small{font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px}
+
+input[type=text],input[type=number],input[type=email],input[type=url],textarea,select{
+  width:100%;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 11px;
+  outline:none;transition:border-color .2s,box-shadow .2s;-moz-appearance:textfield
+}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+input:focus,textarea:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+textarea{resize:vertical;min-height:72px;line-height:1.5}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;cursor:pointer}
+
+/* Radio KM/MI */
+.unit-group{display:flex;gap:8px}
+.unit-opt{flex:1}
+.unit-opt input[type=radio]{display:none}
+.unit-opt label{display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13.5px;font-weight:500;color:var(--text2);transition:all .15s;width:100%}
+.unit-opt input[type=radio]:checked+label{border-color:var(--primary);background:var(--primary-light);color:var(--primary);font-weight:600}
+
+/* Checkbox */
+.chk-label{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;margin-bottom:8px;line-height:1.4}
+.chk-label input{width:15px;height:15px;margin-top:2px;flex-shrink:0;accent-color:var(--primary);cursor:pointer}
+
+/* Divider */
+hr.dv{border:none;border-top:1px solid var(--border);margin:18px 0}
+.sec-title{font-size:11.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
+
+/* Social inputs */
+.soc-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.soc-wrap{position:relative}
+.soc-wrap .pfx{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text3);pointer-events:none;white-space:nowrap}
+.soc-wrap input{padding-left:62px}
+
+/* Buttons */
+.btn-gen{width:100%;padding:13px;background:var(--primary);color:#fff;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;border:none;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .2s,transform .1s,box-shadow .2s;margin-top:8px;letter-spacing:.2px}
+.btn-gen:hover{background:var(--primary-dark);box-shadow:var(--shadow-md)}
+.btn-gen:active{transform:scale(.98)}
+.btn-gen svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.btn-dl{display:none;width:100%;padding:11px;background:var(--green-light);color:var(--green);font-family:'Inter',sans-serif;font-size:13.5px;font-weight:700;border:1.5px solid #86efac;border-radius:var(--radius-sm);cursor:pointer;align-items:center;justify-content:center;gap:8px;margin-top:10px;transition:background .2s}
+.btn-dl.show{display:flex}
+.btn-dl:hover{background:#dcfce7}
+.btn-clr{font-size:12px;font-weight:500;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px;transition:color .15s}
+.btn-clr:hover{color:#ef4444}
+
+/* MAP */
+.map-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.map-hdr{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.map-hdr h2{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.badge{font-size:11px;padding:3px 10px;border-radius:100px;background:#f1f5f9;color:var(--text2);font-weight:500}
+.badge.on{background:#dbeafe;color:var(--primary)}
+#map-ph{height:480px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--text3);background:#f8fafc}
+#map-ph svg{width:52px;height:52px;opacity:.25}
+#map-ph p{font-size:13px;text-align:center;max-width:220px;line-height:1.5}
+#map{height:480px;display:none}
+.kml-box{display:none;border-top:1px solid var(--border)}
+.kml-box.on{display:block}
+.kml-hdr{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;background:#f8fafc}
+.kml-hdr span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)}
+.kml-pre{font-family:monospace;font-size:11px;color:var(--text2);padding:0 16px 14px;overflow-x:auto;white-space:pre-wrap;max-height:150px;overflow-y:auto;line-height:1.6;background:#f8fafc}
+
+/* HOW + FEAT sections */
+.section-wrap{max-width:1200px;margin:0 auto;padding:0 24px 60px}
+.section-wrap h2{font-size:1.35rem;font-weight:800;margin-bottom:8px}
+.section-wrap>p{color:var(--text2);font-size:13.5px;margin-bottom:24px}
+.how-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.how-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+.how-num{font-size:2rem;font-weight:800;color:var(--primary);opacity:.18;line-height:1;margin-bottom:8px}
+.how-card h3{font-size:13.5px;font-weight:700;margin-bottom:6px}
+.how-card p{font-size:13px;color:var(--text2)}
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.feat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);transition:transform .2s,box-shadow .2s}
+.feat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.feat-ic{width:36px;height:36px;border-radius:8px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:10px}
+.feat-card h3{font-size:13.5px;font-weight:700;margin-bottom:5px}
+.feat-card p{font-size:12.5px;color:var(--text2);line-height:1.5}
+
+/* FOOTER */
+footer{background:var(--white);border-top:1px solid var(--border)}
+.ft-inner{max-width:1200px;margin:0 auto;padding:48px 24px 32px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px}
+.ft-brand p{font-size:12.5px;color:var(--text2);margin:10px 0 16px;max-width:260px;line-height:1.6}
+.ft-brand .soc{display:flex;gap:8px}
+.ft-brand .soc a{width:32px;height:32px;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--text2);text-decoration:none;font-size:13px;font-weight:700;transition:border-color .15s,color .15s}
+.ft-brand .soc a:hover{border-color:var(--primary);color:var(--primary)}
+.ft-col h4{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text);margin-bottom:12px}
+.ft-col a{display:block;font-size:13px;color:var(--text2);text-decoration:none;margin-bottom:7px;transition:color .15s}
+.ft-col a:hover{color:var(--primary)}
+.ft-bottom{border-top:1px solid var(--border);padding:16px 24px;max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+.ft-bottom p{font-size:12px;color:var(--text3)}
+.ft-bottom-links{display:flex;gap:20px}
+.ft-bottom-links a{font-size:12px;color:var(--text3);text-decoration:none}
+.ft-bottom-links a:hover{color:var(--primary)}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--green);color:#fff;padding:12px 20px;border-radius:var(--radius-sm);font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;box-shadow:var(--shadow-md);transform:translateY(80px);opacity:0;transition:all .35s cubic-bezier(.34,1.56,.64,1);pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1}
+
+@media(max-width:900px){
+  .page-wrap{grid-template-columns:1fr}
+  .how-grid{grid-template-columns:1fr}
+  .ft-inner{grid-template-columns:1fr 1fr}
+  .nav-links a:not(.nav-cta){display:none}
+}
+@media(max-width:560px){
+  .row2,.row-r,.soc-row{grid-template-columns:1fr}
+  .ft-inner{grid-template-columns:1fr}
+  .ft-bottom{flex-direction:column;gap:8px;text-align:center}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="8"/><circle cx="10" cy="10" r="4" stroke-opacity=".5"/><circle cx="10" cy="10" r="1.5" fill="#fff" stroke="none"/></svg>
+      </div>
+      KML Circle Generator
+    </a>
+    <div class="nav-links">
+      <a href="#">Home</a>
+      <a href="#">Citations Report</a>
+      <a href="#">Schema Generator</a>
+      <a href="#">About</a>
+      <a href="#">Tutorial</a>
+      <a href="#" class="nav-cta">Contact</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">Professional Local SEO Tools</div>
+  <h1>Create Precision KML Circles Instantly</h1>
+  <p>Generate Google My Maps compatible KML files to visualize and expand your local service area authority.</p>
+</section>
+
+<!-- MAIN -->
+<div class="page-wrap">
+
+  <!-- FORM PANEL -->
+  <div class="card">
+    <div class="card-header">
+      <h2><span class="ic">⚙</span> Generator Settings</h2>
+      <button class="btn-clr" onclick="clearAll()">Clear All Data</button>
+    </div>
+    <div class="card-body">
+      <p style="font-size:12.5px;color:var(--text3);margin-bottom:16px">Configure your circle parameters below</p>
+
+      <div class="row2">
+        <div class="fg">
+          <label class="lbl">Center Latitude</label>
+          <input type="number" id="lat" value="23.727002" step="0.000001" placeholder="23.727002"/>
+        </div>
+        <div class="fg">
+          <label class="lbl">Center Longitude</label>
+          <input type="number" id="lng" value="90.409300" step="0.000001" placeholder="90.409300"/>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="lbl">Radius</label>
+        <div class="row-r">
+          <input type="number" id="radius" value="10" min="0.1" step="0.1" placeholder="e.g. 10"/>
+          <div class="unit-group">
+            <div class="unit-opt">
+              <input type="radio" name="unit" id="u-km" value="KM" checked/>
+              <label for="u-km">KM</label>
+            </div>
+            <div class="unit-opt">
+              <input type="radio" name="unit" id="u-mi" value="MI"/>
+              <label for="u-mi">MI</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="lbl">Number of Points</label>
+        <input type="number" id="points" value="36" min="4" max="1000" step="1" placeholder="e.g. 36"/>
+      </div>
+
+      <div class="fg">
+        <label class="chk-label"><input type="checkbox" id="chk-drive"> Include Driving Directions (on 5% of points)</label>
+        <label class="chk-label"><input type="checkbox" id="chk-route"> Include Driving Route to Main Point (2%)</label>
+      </div>
+
+      <hr class="dv"/>
+      <p class="sec-title">Business Details (NAP)</p>
+
+      <div class="row2">
+        <div class="fg">
+          <label class="lbl">Business Name</label>
+          <input type="text" id="biz-name" placeholder="Your Business Name"/>
+        </div>
+        <div class="fg">
+          <label class="lbl">Category</label>
+          <input type="text" id="biz-cat" placeholder="e.g. Plumber"/>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="lbl">Address</label>
+        <input type="text" id="biz-addr" placeholder="Full business address"/>
+      </div>
+
+      <div class="row2">
+        <div class="fg">
+          <label class="lbl">Phone</label>
+          <input type="text" id="biz-phone" placeholder="+1 (555) 000-0000"/>
+        </div>
+        <div class="fg">
+          <label class="lbl">Email</label>
+          <input type="email" id="biz-email" placeholder="info@example.com"/>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="lbl">Website URL <small>(Included on 5% of points)</small></label>
+        <input type="url" id="biz-web" placeholder="https://yourwebsite.com"/>
+      </div>
+
+      <div class="fg">
+        <label class="lbl">Business Hours</label>
+        <input type="text" id="biz-hours" placeholder="Mon–Fri 9am–6pm"/>
+      </div>
+
+      <div class="fg">
+        <label class="lbl">Image URL <small>(Optional)</small></label>
+        <input type="url" id="biz-img" placeholder="https://example.com/photo.jpg"/>
+      </div>
+
+      <div class="fg">
+        <label class="lbl">Keywords <small>(Comma separated)</small></label>
+        <input type="text" id="biz-kw" placeholder="plumber, dhaka, repair"/>
+      </div>
+
+      <div class="fg">
+        <label class="lbl">Description</label>
+        <textarea id="biz-desc" placeholder="Brief description of your business..."></textarea>
+      </div>
+
+      <hr class="dv"/>
+      <p class="sec-title">Social Media Links</p>
+
+      <div class="soc-row">
+        <div class="fg">
+          <label class="lbl">Facebook</label>
+          <div class="soc-wrap">
+            <span class="pfx">fb.com/</span>
+            <input type="text" id="soc-fb" placeholder="yourpage"/>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="lbl">Twitter / X</label>
+          <div class="soc-wrap">
+            <span class="pfx">x.com/</span>
+            <input type="text" id="soc-tw" placeholder="handle"/>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="lbl">Instagram</label>
+          <div class="soc-wrap">
+            <span class="pfx">ig.com/</span>
+            <input type="text" id="soc-ig" placeholder="handle"/>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="lbl">LinkedIn</label>
+          <div class="soc-wrap">
+            <span class="pfx">in.com/</span>
+            <input type="text" id="soc-li" placeholder="profile"/>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="lbl">YouTube</label>
+          <div class="soc-wrap">
+            <span class="pfx">yt.com/</span>
+            <input type="text" id="soc-yt" placeholder="channel"/>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-gen" onclick="generate()">
+        <svg viewBox="0 0 16 16"><path d="M8 1v14M1 8h14"/></svg>
+        Generate KML File
+      </button>
+      <button class="btn-dl" id="dl-btn" onclick="downloadKML()">↓ Download .kml File</button>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div style="display:flex;flex-direction:column;gap:20px">
+
+    <!-- MAP -->
+    <div class="map-card">
+      <div class="map-hdr">
+        <h2>
+          <svg width="15" height="15" fill="none" stroke="var(--primary)" stroke-width="2" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/></svg>
+          Live Map Preview
+        </h2>
+        <span class="badge" id="m-badge">Ready</span>
+      </div>
+      <div id="map-ph">
+        <svg viewBox="0 0 52 52" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="26" cy="26" r="22"/>
+          <circle cx="26" cy="26" r="11"/>
+          <circle cx="26" cy="26" r="3" fill="currentColor" stroke="none"/>
+          <line x1="26" y1="4" x2="26" y2="48"/>
+          <line x1="4" y1="26" x2="48" y2="26"/>
+        </svg>
+        <p>Fill in the settings and click <strong>Generate KML File</strong></p>
+      </div>
+      <div id="map"></div>
+      <div class="kml-box" id="kml-box">
+        <div class="kml-hdr">
+          <span>KML Preview</span>
+          <button class="btn-clr" onclick="downloadKML()">Download ↓</button>
+        </div>
+        <pre class="kml-pre" id="kml-pre"></pre>
+      </div>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <div class="card">
+      <div class="card-header"><h2><span class="ic">📖</span> How It Works</h2><span style="font-size:12px;color:var(--text3)">Generate professional maps in 3 simple steps</span></div>
+      <div class="card-body">
+        <div class="how-grid">
+          <div class="how-card"><div class="how-num">01</div><h3>Configure</h3><p>Enter your central location coordinates and choose your desired service radius.</p></div>
+          <div class="how-card"><div class="how-num">02</div><h3>Customize</h3><p>Select the number of points to generate and adjust the density for optimal coverage.</p></div>
+          <div class="how-card"><div class="how-num">03</div><h3>Download</h3><p>Instantly get your <code>.kml</code> file, ready to import into Google My Maps or Earth.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section-wrap">
+  <h2>Power Up Your Strategy</h2>
+  <p>Features designed to scale your local SEO efforts</p>
+  <div class="feat-grid">
+    <div class="feat-card"><div class="feat-ic">⚡</div><h3>Instant Generation</h3><p>Create precise KML files with custom radius and point density in milliseconds.</p></div>
+    <div class="feat-card"><div class="feat-ic">🗺</div><h3>Map Integration</h3><p>Seamlessly import generated files into Google My Maps and Google Earth Pro.</p></div>
+    <div class="feat-card"><div class="feat-ic">📈</div><h3>Authority Booster</h3><p>Strategically plan your service area expansion to dominate local search results.</p></div>
+    <div class="feat-card"><div class="feat-ic">🎨</div><h3>Premium Visuals</h3><p>Generate maps that look professional with colorful, labeled markers.</p></div>
+    <div class="feat-card"><div class="feat-ic">📍</div><h3>Multi-Location</h3><p>Scale your operations by managing citation points for multiple business locations.</p></div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="ft-inner">
+    <div class="ft-brand">
+      <a href="#" class="logo">
+        <div class="logo-icon"><svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="2"><circle cx="10" cy="10" r="8"/><circle cx="10" cy="10" r="4" stroke-opacity=".5"/><circle cx="10" cy="10" r="1.5" fill="#fff" stroke="none"/></svg></div>
+        KML Circle Generator
+      </a>
+      <p>Helping businesses grow through advanced Local SEO and KML mapping strategies. Specializing in Service Area Optimization and Geo-Targeting.</p>
+      <div class="soc">
+        <a href="#" title="Facebook">f</a>
+        <a href="#" title="Instagram">in</a>
+        <a href="#" title="X / Twitter">𝕏</a>
+        <a href="#" title="Pinterest">P</a>
+      </div>
+    </div>
+    <div class="ft-col">
+      <h4>Services</h4>
+      <a href="#">Circle Generator</a>
+      <a href="#">Citations Report</a>
+      <a href="#">Schema Generator</a>
+    </div>
+    <div class="ft-col">
+      <h4>Company</h4>
+      <a href="#">About Me</a>
+      <a href="#">Blog</a>
+      <a href="#">Contact</a>
+    </div>
+    <div class="ft-col">
+      <h4>Connect</h4>
+      <a href="mailto:kmlcirclegenerator@gmail.com">kmlcirclegenerator@gmail.com</a>
+    </div>
+  </div>
+  <div class="ft-bottom">
+    <p>© 2026 KML Circle Generator. All rights reserved.</p>
+    <div class="ft-bottom-links">
+      <a href="#">Privacy Policy</a>
+      <a href="#">Terms of Service</a>
+    </div>
+  </div>
+</footer>
+
+<div class="toast" id="toast">✓ KML file downloaded!</div>
+
+<script>
+let kmlContent='', mapObj=null, circLayer=null, pinLayer=null;
+
+function clearAll(){
+  ['lat','lng','radius','points','biz-name','biz-cat','biz-addr','biz-phone',
+   'biz-email','biz-web','biz-hours','biz-img','biz-kw','biz-desc',
+   'soc-fb','soc-tw','soc-ig','soc-li','soc-yt'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.value='';
+  });
+  document.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=false);
+  document.getElementById('u-km').checked=true;
+}
+
+function getUnit(){ return document.querySelector('input[name=unit]:checked').value; }
+
+function circlePoints(lat,lng,rkm,n){
+  const pts=[],R=6371;
+  for(let i=0;i<=n;i++){
+    const a=(i/n)*2*Math.PI;
+    const dlat=(rkm/R)*(180/Math.PI)*Math.cos(a);
+    const dlng=(rkm/R)*(180/Math.PI)*Math.sin(a)/Math.cos(lat*Math.PI/180);
+    pts.push([lat+dlat, lng+dlng]);
+  }
+  return pts;
+}
+
+function generate(){
+  const lat=parseFloat(document.getElementById('lat').value);
+  const lng=parseFloat(document.getElementById('lng').value);
+  const rv=parseFloat(document.getElementById('radius').value);
+  const np=parseInt(document.getElementById('points').value);
+  if(isNaN(lat)||isNaN(lng)){alert('Please enter valid Latitude and Longitude.');return;}
+  if(isNaN(rv)||rv<=0){alert('Please enter a valid Radius value.');return;}
+  if(isNaN(np)||np<4){alert('Number of points must be at least 4.');return;}
+
+  const unit=getUnit();
+  const rkm=unit==='MI'?rv*1.60934:rv;
+  const pts=circlePoints(lat,lng,rkm,np);
+
+  // Map
+  document.getElementById('map-ph').style.display='none';
+  document.getElementById('map').style.display='block';
+  if(!mapObj){
+    mapObj=L.map('map').setView([lat,lng],11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(mapObj);
+  } else {
+    if(circLayer)mapObj.removeLayer(circLayer);
+    if(pinLayer)mapObj.removeLayer(pinLayer);
+    mapObj.setView([lat,lng],11);
+  }
+  circLayer=L.polygon(pts,{color:'#2563eb',weight:2.5,fillColor:'#3b82f6',fillOpacity:.1}).addTo(mapObj);
+  const ic=L.divIcon({html:'<div style="width:14px;height:14px;background:#2563eb;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(37,99,235,.5)"></div>',iconSize:[14,14],iconAnchor:[7,7],className:''});
+  const bn=document.getElementById('biz-name').value||'My Business';
+  const ba=document.getElementById('biz-addr').value;
+  pinLayer=L.marker([lat,lng],{icon:ic}).bindPopup('<b>'+bn+'</b>'+(ba?'<br>'+ba:'')).addTo(mapObj);
+  mapObj.fitBounds(circLayer.getBounds(),{padding:[20,20]});
+  document.getElementById('m-badge').textContent=rv+' '+unit+' · '+np+' pts';
+  document.getElementById('m-badge').className='badge on';
+
+  // KML
+  const cs=pts.map(p=>p[1].toFixed(6)+','+p[0].toFixed(6)+',0').join('\n            ');
+  const biz={
+    name:bn, cat:document.getElementById('biz-cat').value,
+    addr:ba, phone:document.getElementById('biz-phone').value,
+    email:document.getElementById('biz-email').value,
+    web:document.getElementById('biz-web').value,
+    hours:document.getElementById('biz-hours').value,
+    img:document.getElementById('biz-img').value,
+    kw:document.getElementById('biz-kw').value,
+    desc:document.getElementById('biz-desc').value,
+    fb:document.getElementById('soc-fb').value,
+    tw:document.getElementById('soc-tw').value,
+    ig:document.getElementById('soc-ig').value,
+    li:document.getElementById('soc-li').value,
+    yt:document.getElementById('soc-yt').value
+  };
+  const socStr=[biz.fb?'<a href="https://facebook.com/'+biz.fb+'">Facebook</a>':'',biz.tw?'<a href="https://x.com/'+biz.tw+'">X</a>':'',biz.ig?'<a href="https://instagram.com/'+biz.ig+'">Instagram</a>':'',biz.li?'<a href="https://linkedin.com/in/'+biz.li+'">LinkedIn</a>':'',biz.yt?'<a href="https://youtube.com/'+biz.yt+'">YouTube</a>':''].filter(Boolean).join(' | ');
+  const desc=[biz.cat?'<b>Category:</b> '+biz.cat+'<br/>':'',biz.addr?'<b>Address:</b> '+biz.addr+'<br/>':'',biz.phone?'<b>Phone:</b> '+biz.phone+'<br/>':'',biz.email?'<b>Email:</b> '+biz.email+'<br/>':'',biz.web?'<b>Website:</b> <a href="'+biz.web+'">'+biz.web+'</a><br/>':'',biz.hours?'<b>Hours:</b> '+biz.hours+'<br/>':'',biz.kw?'<b>Keywords:</b> '+biz.kw+'<br/>':'',biz.desc?'<br/>'+biz.desc+'<br/>':'',biz.img?'<br/><img src="'+biz.img+'" width="200"/><br/>':'',socStr?'<br/>'+socStr:''].join('');
+
+  // 5% pin points
+  const step5=Math.max(1,Math.floor(np/Math.max(1,Math.round(np*.05))));
+  const pinPts=pts.filter((_,i)=>i%step5===0&&i>0);
+  const incDrive=document.getElementById('chk-drive').checked;
+  const incRoute=document.getElementById('chk-route').checked;
+
+  const pinPM=pinPts.map((p,i)=>`
+  <Placemark>
+    <name>${biz.name}${biz.cat?' — '+biz.cat:''} · Point ${i+1}</name>
+    <description><![CDATA[${desc}]]></description>
+    <styleUrl>#pinStyle</styleUrl>
+    <Point><coordinates>${p[1].toFixed(6)},${p[0].toFixed(6)},0</coordinates></Point>
+  </Placemark>`).join('');
+
+  const drivePM=incDrive?pts.filter((_,i)=>i%step5===0&&i>0).slice(0,3).map((p,i)=>`
+  <Placemark>
+    <name>${biz.name} — Directions ${i+1}</name>
+    <description><![CDATA[<a href="https://www.google.com/maps/dir/?api=1&destination=${p[0].toFixed(6)},${p[1].toFixed(6)}">Get Directions</a>]]></description>
+    <styleUrl>#driveStyle</styleUrl>
+    <Point><coordinates>${p[1].toFixed(6)},${p[0].toFixed(6)},0</coordinates></Point>
+  </Placemark>`).join(''):'';
+
+  const routePM=incRoute?`
+  <Placemark>
+    <name>${biz.name} — Route</name>
+    <styleUrl>#routeStyle</styleUrl>
+    <LineString>
+      <coordinates>${pts.slice(0,Math.max(2,Math.ceil(np*.02))).map(p=>p[1].toFixed(6)+','+p[0].toFixed(6)+',0').join(' ')}</coordinates>
+    </LineString>
+  </Placemark>`:'';
+
+  kmlContent=`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>${biz.name} — Service Area (${rv} ${unit})</name>
+  <description>Radius: ${rv} ${unit} | Center: ${lat}, ${lng} | Points: ${np}</description>
+  <Style id="circleStyle">
+    <LineStyle><color>ffeb5226</color><width>3</width></LineStyle>
+    <PolyStyle><color>26eb5226</color></PolyStyle>
+  </Style>
+  <Style id="pinStyle">
+    <IconStyle><color>ffeb2663</color><scale>1.0</scale><Icon><href>https://maps.google.com/mapfiles/kml/paddle/blu-blank.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0.75</scale></LabelStyle>
+    <BalloonStyle><text><![CDATA[$[description]]]></text></BalloonStyle>
+  </Style>
+  <Style id="driveStyle">
+    <IconStyle><color>ff00aa00</color><scale>0.9</scale><Icon><href>https://maps.google.com/mapfiles/kml/paddle/grn-blank.png</href></Icon></IconStyle>
+  </Style>
+  <Style id="routeStyle">
+    <LineStyle><color>ff00aa00</color><width>2</width></LineStyle>
+  </Style>
+  <Placemark>
+    <name>${biz.name} — Service Area Circle (${rv} ${unit})</name>
+    <styleUrl>#circleStyle</styleUrl>
+    <Polygon>
+      <extrude>0</extrude>
+      <altitudeMode>clampToGround</altitudeMode>
+      <outerBoundaryIs><LinearRing><coordinates>
+            ${cs}
+      </coordinates></LinearRing></outerBoundaryIs>
+    </Polygon>
+  </Placemark>
+  <Placemark>
+    <name>${biz.name} — Center</name>
+    <description><![CDATA[${desc}]]></description>
+    <styleUrl>#pinStyle</styleUrl>
+    <Point><coordinates>${lng},${lat},0</coordinates></Point>
+  </Placemark>
+  ${pinPM}${drivePM}${routePM}
+</Document>
+</kml>`;
+
+  document.getElementById('kml-pre').textContent=kmlContent.substring(0,700)+'\n\n  ... ('+kmlContent.length+' total characters)';
+  document.getElementById('kml-box').classList.add('on');
+  document.getElementById('dl-btn').classList.add('show');
+}
+
+function downloadKML(){
+  if(!kmlContent)return;
+  const name=(document.getElementById('biz-name').value||'service-area').replace(/\s+/g,'-').toLowerCase();
+  const blob=new Blob([kmlContent],{type:'application/vnd.google-earth.kml+xml'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=name+'-circle.kml';a.click();
+  URL.revokeObjectURL(url);
+  const t=document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+</script>
+</body>
+</html>
